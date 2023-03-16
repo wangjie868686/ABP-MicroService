@@ -11,7 +11,6 @@ using Volo.Abp;
 using Volo.Abp.Application.Dtos;
 using Volo.Abp.Application.Services;
 using Volo.Abp.Domain.Repositories;
-using static Microsoft.EntityFrameworkCore.DbLoggerCategory;
 
 namespace BaseService.BaseData.OrganizationManagement
 {
@@ -56,7 +55,10 @@ namespace BaseService.BaseData.OrganizationManagement
             foreach (var id in ids)
             {
                 var org = await _repository.GetAsync(id);
+                var parentOrg = await _repository.FirstOrDefaultAsync(_ => _.Id == org.Pid);
                 await _repository.DeleteAsync(_ => _.CascadeId.Contains(org.CascadeId));
+                if (parentOrg != null)
+                    parentOrg.Leaf = true;
             }
         }
 
@@ -67,21 +69,25 @@ namespace BaseService.BaseData.OrganizationManagement
             return ObjectMapper.Map<Organization, OrganizationDto>(result);
         }
 
+        /// <summary>
+        /// 获取组织列表
+        /// </summary>
+        /// <param name="input"></param>
+        /// <returns></returns>
         public async Task<PagedResultDto<OrganizationDto>> GetAll(GetOrganizationInputDto input)
         {
             var query = (await _repository.GetQueryableAsync())
                 .WhereIf(!string.IsNullOrWhiteSpace(input.Filter), _ => _.Name.Contains(input.Filter))
                 .WhereIf(input.CategoryId.HasValue, _ => _.CategoryId == input.CategoryId);
-            //改为linq to sql
-            var userOrgs = await _userOrgRepository.GetListAsync(_ => _.UserId == CurrentUser.Id);
-            var CascadeIds = (await _repository.GetListAsync(_ => userOrgs.Select(s => s.OrganizationId).Contains(_.Id))).Select(_ => _.CascadeId).ToList();
-            foreach (var id in CascadeIds)
+            //var userOrgs = await _userOrgRepository.GetListAsync(_ => _.UserId == CurrentUser.Id);
+            //var CascadeIds = (await _repository.GetListAsync(_ => userOrgs.Select(s => s.OrganizationId).Contains(_.Id))).Select(_ => _.CascadeId).ToList();
+            //foreach (var id in CascadeIds)
+            //{
+            //    query = query.Where(_ => _.CascadeId.Contains(id));
+            //}
+            if (input.Pid.HasValue)
             {
-                query = query.Where(_ => _.CascadeId.Contains(id));
-            }
-            if (input.Id.HasValue)
-            {
-                var org = await _repository.GetAsync(input.Id.Value);
+                var org = await _repository.GetAsync(input.Pid.Value);
                 query = query.Where(_ => _.CascadeId.Contains(org.CascadeId));
             }
 
@@ -95,16 +101,21 @@ namespace BaseService.BaseData.OrganizationManagement
             return new PagedResultDto<OrganizationDto>(totalCount, dtos);
         }
 
+        /// <summary>
+        /// 懒加载组织树，无数据权限过滤
+        /// </summary>
+        /// <param name="id"></param>
+        /// <param name="filter"></param>
+        /// <returns></returns>
         public async Task<ListResultDto<OrganizationDto>> LoadAll(Guid? id, string filter)
         {
             var queryable = await _repository.GetQueryableAsync();
-            //改为linq to sql
-            var userOrgs = await _userOrgRepository.GetListAsync(_ => _.UserId == CurrentUser.Id);
-            var CascadeIds = (await _repository.GetListAsync(_ => userOrgs.Select(s => s.OrganizationId).Contains(_.Id))).Select(_ => _.CascadeId).ToList();
-            foreach (var cscade in CascadeIds)
-            {
-                queryable = queryable.Where(_ => _.CascadeId.Contains(cscade));
-            }
+            //var userOrgs = await _userOrgRepository.GetListAsync(_ => _.UserId == CurrentUser.Id);
+            //var CascadeIds = (await _repository.GetListAsync(_ => userOrgs.Select(s => s.OrganizationId).Contains(_.Id))).Select(_ => _.CascadeId).ToList();
+            //foreach (var cscade in CascadeIds)
+            //{
+            //    queryable = queryable.Where(_ => _.CascadeId.Contains(cscade));
+            //}
             var items = new List<Organization>();
             if (!string.IsNullOrWhiteSpace(filter))
             {

@@ -20,6 +20,8 @@ namespace BaseService.Systems
 
         public string Name { get; set; }
 
+
+
         public string Label { get; set; }
 
         public int Sort { get; set; }
@@ -42,6 +44,13 @@ namespace BaseService.Systems
         public bool IsHost { get; set; }
 
         public bool IsDeleted { get; set; }
+
+        #region   >适配vue3<
+        public string Title { get; set; }
+
+        public bool IsAffix { get; set; }
+
+        #endregion
 
         public Menu(Guid id) : base(id)
         {
